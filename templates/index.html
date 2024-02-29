@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Engine Frontend</title>
+    <!-- ... 现有的 head 内容 ... -->
+    <style>
+        /* 为登录表单添加一些样式 */
+        #loginForm {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+
+    <style>
+        #userRecommendations {
+            list-style-type: none;
+            padding: 0;
+            text-align: center;
+        }
+        #userAttributes{
+            list-style-type: none;
+            padding: 0;
+            text-align: center;
+        }
+        #history {
+            position: relative;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            max-height: 400px; /* 调整高度 */
+            overflow-y: auto;
+            right: 10px; /* 往右边移动 */
+            width: 300px; /* 调整宽度 */
+            z-index: 2; /* 确保 history 在 results 上面 */
+        }
+        #screenshotImage {
+            margin-top: 20px; /* 通过调整像素值来设置上边距，将图像向下移动 */
+            /* 或者使用 padding-top，根据您的需求选择其中一种 */
+            /* padding-top: 20px; */
+        }
+    </style>
+    <style>
+        img#screenshotImage {
+            max-width: 1000px; /* 根据需要调整最大宽度 */
+            max-height: 1000px; /* 根据需要调整最大高度 */
+            transition: opacity 0.5s ease; /* 添加平滑的过渡效果 */
+        }
+    </style>
+</head>
+<body  style="display: flex; flex-direction: column; align-items: center; justify-content: center;  margin: 0;">
+
+    <h1>Search Engine</h1>
+        <!-- 新的登录表单部分 -->
+    <div id="loginForm">
+        <h2>登录</h2>
+        <form id="userLoginForm">
+            <label for="username">用户名: </label>
+            <input type="text" id="username" name="username" required>
+            <label for="password">密码: </label>
+            <input type="password" id="password" name="password" required>
+            <button type="button" onclick="loginUser()">登录</button>
+        </form>
+    </div>
+    <form id="searchForm">
+        <label for="query">Search: </label>
+        <input type="text" id="query" name="query">
+        <button type="submit">Submit</button>
+    </form>
+    <ul id="history"></ul>
+    <ul id="results"></ul>
+
+    <!-- 新增的表单 -->
+    <form id="screenshotForm">
+        <label for="screenshot">Enter URL for Screenshot: </label>
+        <input type="text" id="screenshot" name="screenshot">
+        <button type="button" onclick="getScreenshot()">Get Screenshot</button>
+    </form>
+    <!-- 显示图片 -->
+    <img id="screenshotImage" src="" alt="Screenshot">
+    <div id="userRecommendations">
+        <h2>User Recommendations</h2>
+        <ul id="recommend"></ul>
+    </div>
+
+    <!-- 在登录表单下方添加用户属性选择 -->
+    <div id="userAttributes" style="display: none;">
+        <h2>选择用户属性</h2>
+        <label for="userAttribute">用户属性: </label>
+        <select id="userAttribute" name="userAttribute">
+            <option value="本科生">本科生</option>
+            <option value="研究生">研究生</option>
+            <option value="博士生">留学生</option>
+            <option value="留学生">博士生</option>
+        </select>
+        <button type="button" onclick="selectUserAttribute()">确认</button>
+    </div>
+
+<!--    {% if img_stream %}-->
+<!--    <img id="screenshotImage" src="data:image/png;base64,{{ img_stream }}" alt="Screenshot">-->
+<!--    {% endif %}-->
+    <script>
+        const queryInput = document.getElementById('query');
+        const historyList = document.getElementById('history');
+        // 添加一个变量来存储当前用户
+        let currentUser = null;
+        function loginUser() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            // 构造包含用户名和密码的对象
+            const loginData = {
+                username: username,
+                password: password
+            };
+            // 使用 fetch 发送 POST 请求到后端
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(loginData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 登录成功的处理逻辑
+                    currentUser = username;
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('searchForm').style.display = 'block';
+                    document.getElementById('screenshotForm').style.display = 'block';
+                    document.getElementById('userRecommendations').style.display = 'block';
+                    document.getElementById('userAttributes').style.display = 'block';
+                    // 在用户登录成功后获取推荐结果
+                    getRecommendations();
+                } else {
+                    // 登录失败的处理逻辑
+                    alert("无效的凭据，请重试。");
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // 在页面加载时检查是否已经有用户登录，如果是，则显示搜索表单，否则显示登录表单
+        document.addEventListener('DOMContentLoaded', function () {
+            var screenshotImage = document.getElementById('screenshotImage');
+            // 在页面加载时检查是否已经有用户登录，如果是，则显示搜索表单，否则显示登录表单
+            if (currentUser) {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('searchForm').style.display = 'block';
+                document.getElementById('screenshotForm').style.display = 'block';
+                document.getElementById('userRecommendations').style.display = 'block';
+                document.addEventListener('click', function () {
+                    // 当发生任何点击事件时隐藏图像
+                    // screenshotImage.style.opacity = '0';
+                    // // 清空图像的 src 属性
+                    // screenshotImage.src = '';
+                    // // 将图像元素从DOM中移除
+                    // screenshotImage.parentNode.removeChild(screenshotImage);
+                    // // screenshotImage.remove();
+                });
+            } else {
+                document.getElementById('loginForm').style.display = 'block';
+                document.getElementById('searchForm').style.display = 'none';
+                document.getElementById('screenshotForm').style.display = 'none';
+                document.getElementById('userRecommendations').style.display = 'none';
+                screenshotImage.style.opacity = '0';
+            }
+        });
+        queryInput.addEventListener('focus', showHistory);
+        queryInput.addEventListener('blur', hideHistory);
+        function showHistory() {
+            // 在这里编写显示历史记录的逻辑
+            // 可以在这里使用 AJAX 请求获取历史记录并显示在页面上
+            // 示意性地在控制台输出一条信息
+             fetch('/showhistory', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                 body: new URLSearchParams({ 'username': currentUser }), // 将用户名添加到请求体中
+             })
+             .then(response => {
+                return response.json();
+             })
+            .then(data => {
+                const historyContainer = document.getElementById('history');
+                historyContainer.innerHTML = ''; // Clear previous result
+                data.forEach(result => {
+                    const listItem = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.textContent = result;
+                    listItem.appendChild(link);
+                    historyContainer.appendChild(listItem);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+             historyList.style.display = 'block';
+        }
+        function hideHistory() {
+            // 在失去焦点时隐藏历史记录
+            historyList.style.display = 'none';
+        }
+
+        document.getElementById('searchForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const query = document.getElementById('query').value;
+            if (currentUser) {
+                fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    //body: new URLSearchParams({ 'query': query }),
+                    body: new URLSearchParams({
+                        'query': query,
+                        'username': currentUser
+                    }), // 将用户名和查询添加到请求体中
+                })
+                .then(response => {
+                    return response.json();
+                })
+                .then(data => {
+                    const resultsContainer = document.getElementById('results');
+                    resultsContainer.innerHTML = ''; // Clear previous result
+                    data.forEach(result => {
+                        const listItem = document.createElement('li');
+                        const link = document.createElement('a');
+                        link.href = result.url;
+                        link.textContent = result.title;
+                        // 设置 target 为 _blank，使链接在新窗口中打开
+                        link.target = '_blank';
+                        listItem.appendChild(link);
+                        resultsContainer.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+
+                // 2. 向 '/getrecommendations' 路由发送获取推荐结果的请求
+                fetch('/getrecommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'username': currentUser
+                    }),
+                })
+                .then(response => {
+                    return response.json();
+                })
+                .then(data => {
+                    // 清除之前的推荐结果
+                    const recommendContainer = document.getElementById('recommend');
+                    recommendContainer.innerHTML = '';
+                    // 处理推荐结果
+                    data.forEach(recommendation => {
+                        const listItem = document.createElement('li');
+                        const link = document.createElement('a');
+                        link.href = recommendation.url;
+                        link.textContent = recommendation.title;
+                        // 设置 target 为 _blank，使链接在新窗口中打开
+                        link.target = '_blank';
+                        listItem.appendChild(link);
+                        recommendContainer.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+                    } else {
+                        alert("请先登录。");
+                    }
+        });
+
+        function getScreenshot() {
+            const screenshotURL = document.getElementById('screenshot').value;
+            // 发送请求获取截图
+            fetch('/showscreenshot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'screenshot': screenshotURL
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 处理返回的数据，可能更新页面中的截图显示
+                if (data.img_stream) {
+                    // src="data:image/png;base64,{{ img_stream }}
+                    const screenshotImage = document.getElementById('screenshotImage');
+                    screenshotImage.src = `data:image/png;base64,${data.img_stream}`;
+                    screenshotImage.style.opacity = '1'; // 显示图像
+                } else {
+                    // 处理没有图像的情况
+                    alert('未能获取截图。');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        document.addEventListener('click', function(event) {
+            const screenshotImage = document.getElementById('screenshotImage');
+            // 检查点击事件的目标是否是图像本身或包含图像的元素
+            if (event.target === screenshotImage || screenshotImage.contains(event.target)) {
+                // 如果点击的是图像或包含图像的元素，则不执行隐藏操作
+                return;
+            }
+            // 隐藏图像
+            // screenshotImage.style.opacity = '0';
+            // 清空图像的 src 属性
+            // screenshotImage.src = '';
+            // 将图像的 src 属性还原为初始值
+            // screenshotImage.src = screenshotImage.dataset.originalSrc;
+            // 将图像元素从DOM中移除
+            // screenshotImage.parentNode.removeChild(screenshotImage);
+            //彻底删除图像元素
+
+            // screenshotImage.remove();
+        });
+
+        // 添加点击事件监听器到整个文档
+        document.addEventListener('click', function () {
+            // 清空显示结果的容器中的所有内容
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+        });
+
+        // 获取推荐结果的函数
+        function getRecommendations() {
+                 // 2. 向 '/getrecommendations' 路由发送获取推荐结果的请求
+                fetch('/getrecommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'username': currentUser
+                    }),
+                })
+                .then(response => {
+                    return response.json();
+                })
+                .then(data => {
+                    // 清除之前的推荐结果
+                    const recommendContainer = document.getElementById('recommend');
+                    recommendContainer.innerHTML = '';
+                    // 处理推荐结果
+                    data.forEach(recommendation => {
+                        const listItem = document.createElement('li');
+                        const link = document.createElement('a');
+                        link.href = recommendation.url;
+                        link.textContent = recommendation.title;
+                        // 设置 target 为 _blank，使链接在新窗口中打开
+                        link.target = '_blank';
+                        listItem.appendChild(link);
+                        recommendContainer.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function selectUserAttribute() {
+            const userAttribute = document.getElementById('userAttribute').value;
+            // 将用户属性发送到后端保存，你需要根据实际情况调整这部分逻辑
+            fetch('/saveuserattribute', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            body: JSON.stringify({  // 使用 JSON.stringify 将数据转为 JSON 字符串
+                'username': currentUser,
+                'userAttribute': userAttribute
+            })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data) {
+                    alert('用户属性保存成功！');
+                } else {
+                    alert('保存用户属性失败，请重试。');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
